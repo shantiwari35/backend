@@ -3,6 +3,7 @@ package com.hoaxify.hoaxify.file;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Base64;
 import java.util.Date;
@@ -11,29 +12,34 @@ import java.util.UUID;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.tika.Tika;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.hoaxify.hoaxify.configuration.AppConfiguration;
+import com.hoaxify.hoaxify.user.User;
 
 @Service
 @EnableScheduling
 public class FileService {
 	
+	@Autowired
 	AppConfiguration appConfiguration;
+	
 	
 	Tika tika;
 	
+	@Autowired
 	FileAttachmentRepository fileAttachmentRepository;
-
-	public FileService(AppConfiguration appConfiguration, FileAttachmentRepository fileAttachmentRepository) {
-		super();
-		this.appConfiguration = appConfiguration;
-		this.fileAttachmentRepository = fileAttachmentRepository;
-		tika = new Tika();
-	}
+//
+//	public FileService(AppConfiguration appConfiguration, FileAttachmentRepository fileAttachmentRepository) {
+//		super();
+//		this.appConfiguration = appConfiguration;
+//		this.fileAttachmentRepository = fileAttachmentRepository;
+//		tika = new Tika();
+//	}
 	
 	public String saveProfileImage(String base64Image) throws IOException {
 		String imageName = getRandomName();
@@ -49,9 +55,23 @@ public class FileService {
 	}
 
 	public String detectType(byte[] fileArr) {
+		tika = new Tika();
 		return tika.detect(fileArr);
 	}
+	public void deleteAttachmentFile(String oldImageName) {
+		if(oldImageName == null) {
+			return;
+		}
+		deleteFile(Paths.get(appConfiguration.getFullAttachmentsPath(), oldImageName));
+	}
 
+	private void deleteFile(Path path) {
+		try {
+			Files.deleteIfExists(path);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
 	public void deleteProfileImage(String image) {
 		try {
 			Files.deleteIfExists(Paths.get(appConfiguration.getFullProfileImagesPath()+"/"+image));
@@ -96,6 +116,15 @@ public class FileService {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+	}
+	
+	public void deleteAllStoredFilesForUser(User inDB) {
+		deleteProfileImage(inDB.getImage());
+		List<FileAttachment> filesToBeRemoved = fileAttachmentRepository.findByHoaxUser(inDB);
+		for(FileAttachment file: filesToBeRemoved) {
+			deleteAttachmentFile(file.getName());
+		}
+		
 	}
 
 }
